@@ -5,13 +5,14 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from askme import __version__
+from askme import __version__, state
 from askme.backends import graphify, understand
 from askme.meta import load
 
 
 def run() -> int:
     out_dir = Path("askme-out").resolve()
+    state.set_out_dir(out_dir)
     meta = load(out_dir / "meta.json")
     report = {
         "askme_version": __version__,
