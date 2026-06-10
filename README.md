@@ -24,80 +24,26 @@ Graphify tells you **where** things are. Understand-Anything tells you **why** t
 
 ---
 
-## Quick start
+## Install
 
-### 1. Build the knowledge base for a project
+> **Status:** `kbask` is **not yet on PyPI**. Install straight from GitHub.
+> Once published, `--from kbask` will resolve from PyPI without changes.
 
-```bash
-cd /path/to/your/project
-uvx --from kbask kbask update .
-```
+### Fastest — curl bootstrap (recommended)
 
-This produces `kbask-out/` with:
-
-```
-kbask-out/
-├── graph.json              # Graphify structural graph
-├── knowledge-graph.json    # Understand-Anything semantic graph
-└── meta.json               # per-file hashes, versions, last-build timestamps
-```
-
-The first run rebuilds everything. Subsequent runs are **incremental** — only files whose content hash changed since the last build are re-analyzed. Token cost scales with diff size, not repo size.
-
-### 2. Wire `kbask` into your MCP host
-
-Pick the installer for your host (see [Host setup](#host-setup) below):
-
-```bash
-# Claude Code (project-scope .mcp.json)
-uvx --from kbask kbask install claude
-
-# Codex CLI
-uvx --from kbask kbask install codex
-
-# Gemini CLI
-uvx --from kbask kbask install gemini
-```
-
-Each installer writes a single `kbask` MCP server entry pointing at `kbask-out/` in the current project, with a timestamped backup of any existing config and a post-install MCP smoke test.
-
-### 3. Use it from your agent
-
-Any MCP-compatible host can now call:
-
-```
-kbask.ask("how does login retry work?")
-kbask.trace("LoginViewModel", "AuthRepository")
-kbask.query_graph("ExoPlayer initialisation")
-kbask.semantic_explain("aural/player/data/.../PlayerManager.kt")
-```
-
----
-
-## Install in one command (no clone)
-
-Run from inside the project repo you want indexed.
-
-### Public repo — curl
+Run inside the project repo you want indexed:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/sughosh-pocketfm/kbask/main/install.sh | bash -s claude
-# or codex / gemini
-```
-
-### Private repo — via gh CLI (uses your OAuth)
-
-```bash
-gh api repos/sughosh-pocketfm/kbask/contents/install.sh \
-   -H "Accept: application/vnd.github.raw" | bash -s claude
+# or: bash -s codex   |   bash -s gemini
 ```
 
 The bootstrap script:
-1. Configures git credentials via `gh auth setup-git` (so `uvx` can fetch the private repo).
-2. Installs `uv` if missing.
-3. Runs `uvx --from git+https://github.com/sughosh-pocketfm/kbask kbask install <host> --repo $(pwd)`.
+1. Auto-installs `uv` if missing (via Astral's installer).
+2. Configures git credentials via `gh auth setup-git` when `gh` is available (no-op for public repo, future-proofs the private-fork case).
+3. Runs the host installer with sensible defaults.
 
-### Skip the bootstrap (`uvx` direct)
+### uvx direct (no bootstrap)
 
 ```bash
 uvx --from git+https://github.com/sughosh-pocketfm/kbask kbask install claude --repo .
@@ -105,21 +51,72 @@ uvx --from git+https://github.com/sughosh-pocketfm/kbask kbask install codex  --
 uvx --from git+https://github.com/sughosh-pocketfm/kbask kbask install gemini --repo .
 ```
 
-What it does:
+### After PyPI publish
+
+```bash
+uvx --from kbask kbask install claude --repo .
+# or simply (pkg + script share a name):
+uvx kbask install claude --repo .
+```
+
+### What the installer does
 
 1. Creates `<repo>/kbask-out/` if missing.
 2. Appends `kbask-out/` to `<repo>/.gitignore`.
-3. Writes/upserts the host's config (with a timestamped backup of any existing file).
+3. Writes/upserts the host's config (timestamped backup of any existing file).
 4. Runs an MCP `initialize` + `tools/list` smoke test against the configured server.
 
-Override the source if you fork the repo or pin to a tag:
+### Pin to a fork or tag
 
 ```bash
 KBASK_SOURCE=git+https://github.com/your-fork/kbask@v0.2.0 \
   uvx --from $KBASK_SOURCE kbask install claude --repo .
 ```
 
-Once PyPI publish lands you can swap `git+https://...` for `kbask`.
+---
+
+## Build the knowledge base
+
+After installing, build the input artifacts inside your project repo:
+
+```bash
+cd /path/to/your/project
+
+# 1. Structural graph (Graphify)
+uvx --from graphifyy graphify update .
+
+# 2. Semantic graph (Understand-Anything) — built by an LLM in your host.
+#    In Claude Code, run /understand once and let it populate
+#    .understand-anything/knowledge-graph.json.
+
+# 3. Mirror both into kbask-out/
+uvx --from git+https://github.com/sughosh-pocketfm/kbask kbask update .
+```
+
+Produces `kbask-out/`:
+
+```
+kbask-out/
+├── graph.json              # Graphify structural graph
+├── knowledge-graph.json    # Understand-Anything semantic graph (mirrored)
+├── knowledge-graph.meta.json
+└── meta.json               # per-file hashes, versions, last-build timestamps
+```
+
+First run rebuilds everything. Subsequent `kbask update` runs are **incremental** — only files whose content hash changed are re-analysed. Token cost scales with diff size, not repo size.
+
+---
+
+## Use it from your agent
+
+After restart, any MCP-compatible host can call:
+
+```
+kbask.ask("how does login retry work?")
+kbask.trace("LoginViewModel", "AuthRepository")
+kbask.query_graph("ExoPlayer initialisation")
+kbask.semantic_explain("aural/player/data/.../PlayerManager.kt")
+```
 
 ---
 
@@ -164,13 +161,22 @@ Project-scope `.mcp.json` at your repo root:
     "kbask": {
       "type": "stdio",
       "command": "uvx",
-      "args": ["--from", "kbask", "--with", "mcp", "kbask", "serve", "kbask-out/"]
+      "args": [
+        "--from", "git+https://github.com/sughosh-pocketfm/kbask",
+        "--with", "mcp",
+        "kbask", "serve", "kbask-out/"
+      ]
     }
   }
 }
 ```
 
-Or run `uvx --from kbask kbask install claude` to write this for you.
+> After PyPI publish, replace `"git+https://github.com/sughosh-pocketfm/kbask"` with `"kbask"`.
+
+Or run the installer:
+```bash
+uvx --from git+https://github.com/sughosh-pocketfm/kbask kbask install claude --repo .
+```
 
 ### Codex CLI
 
@@ -178,12 +184,14 @@ Writes to `$CODEX_HOME/config.toml` (default `~/.codex/config.toml`):
 
 ```toml
 [mcp_servers.kbask]
-args = ["--from", "kbask", "--with", "mcp", "kbask", "serve", "/absolute/path/to/kbask-out"]
+args = ["--from", "git+https://github.com/sughosh-pocketfm/kbask", "--with", "mcp", "kbask", "serve", "/absolute/path/to/kbask-out"]
 command = "uvx"
 startup_timeout_sec = 120
 ```
 
-Run `uvx --from kbask kbask install codex` to write this for you.
+```bash
+uvx --from git+https://github.com/sughosh-pocketfm/kbask kbask install codex --repo .
+```
 
 ### Gemini CLI
 
@@ -194,13 +202,19 @@ Writes `mcpServers` block into `~/.gemini/settings.json`:
   "mcpServers": {
     "kbask": {
       "command": "uvx",
-      "args": ["--from", "kbask", "--with", "mcp", "kbask", "serve", "/absolute/path/to/kbask-out"]
+      "args": [
+        "--from", "git+https://github.com/sughosh-pocketfm/kbask",
+        "--with", "mcp",
+        "kbask", "serve", "/absolute/path/to/kbask-out"
+      ]
     }
   }
 }
 ```
 
-Run `uvx --from kbask kbask install gemini` to write this for you.
+```bash
+uvx --from git+https://github.com/sughosh-pocketfm/kbask kbask install gemini --repo .
+```
 
 ### AGY
 
@@ -241,16 +255,18 @@ All tools return structured JSON. None of them call an LLM internally — they r
 ```
 kbask (Python, stdio MCP)
 ├── backends/
-│   ├── graphify.py        # imports graphifyy as a library (no subprocess)
-│   └── understand.py      # spawns Node subprocess against @understand-anything/core
+│   ├── graphify.py        # reuses graphify.serve internals via networkx (no subprocess)
+│   └── understand.py      # reads <repo>/.understand-anything/knowledge-graph.json
 ├── tools/
-│   ├── structural.py      # pass-through wrappers around graphify
-│   ├── semantic.py        # wrappers around understand skill builders
-│   └── hybrid.py          # ask / trace / onboard
-├── update.py              # incremental orchestrator
+│   ├── structural.py      # 7 pass-through wrappers around graphify
+│   ├── semantic.py        # 5 wrappers reading the mirrored knowledge graph
+│   └── hybrid.py          # ask / trace / onboard — compose both backends
+├── installers/            # per-host config writers (Claude / Codex / Gemini / AGY)
+├── update.py              # incremental orchestrator (hash diff + mirror)
 ├── diff.py                # per-file hash delta
-├── meta.py                # meta.json IO
-└── serve.py               # MCP stdio entry point
+├── meta.py                # meta.json IO + hash_file
+├── state.py               # process-wide out_dir holder
+└── serve.py               # MCP stdio entry point — registers 15 tools
 ```
 
 Design rules:
