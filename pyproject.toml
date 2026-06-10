@@ -1,0 +1,47 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "askme-mcp"
+version = "0.1.0"
+description = "Hybrid MCP server combining Graphify structural code graphs with Understand-Anything semantic knowledge bases."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [{ name = "sughosh-pocketfm" }]
+keywords = ["mcp", "code-graph", "knowledge-graph", "graphify", "understand-anything"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "mcp>=1.0.0",
+    "graphifyy",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.6",
+]
+
+[project.scripts]
+askme = "askme.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/sughosh-pocketfm/ask-me"
+Repository = "https://github.com/sughosh-pocketfm/ask-me"
+Issues = "https://github.com/sughosh-pocketfm/ask-me/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/askme"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
