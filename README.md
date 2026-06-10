@@ -255,6 +255,34 @@ uvx --from git+https://github.com/sughosh-pocketfm/kbask kbask install gemini --
 
 All tools return structured JSON. None of them call an LLM internally — they return context bundles for the calling agent's LLM to reason over. This mirrors Graphify's `token_budget` discipline and keeps the MCP host-agnostic.
 
+### Token accounting
+
+Every tool response carries a `_meta` block reporting the approximate
+token + byte cost of that single call:
+
+```json
+{
+  "...your tool payload...": "...",
+  "_meta": {
+    "tool": "query_graph",
+    "tokens": {"input": 12, "output": 1843, "total": 1855},
+    "bytes":  {"input": 47, "output": 7321},
+    "encoder": "heuristic:chars/4"
+  }
+}
+```
+
+By default kbask uses a `len(text) / 4` heuristic (good to ~10%). For
+tokenizer-accurate counts install the optional extra:
+
+```bash
+uv pip install 'kbask[tokens]'    # or: pip install 'kbask[tokens]'
+```
+
+That swaps the encoder to `tiktoken:cl100k_base`. The agent can read
+`_meta.tokens.total` per call and self-throttle (e.g. drop `depth` or
+`token_budget` if a sweep is going hot).
+
 ---
 
 ## Architecture

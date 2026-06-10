@@ -209,22 +209,31 @@ def run(out_dir: Path) -> int:
 
     @server.call_tool()
     async def call_tool(name: str, arguments: Dict[str, Any]) -> list[TextContent]:
-        spec = _TOOLS.get(name)
-        if spec is None:
-            return [TextContent(type="text", text=json.dumps({"error": f"unknown tool: {name}"}))]
-        handler: Callable[..., Any] = spec["fn"]
+        from kbask import tokens
         from kbask.backends.graphify import GraphifyUnavailable
         from kbask.backends.understand import UnderstandUnavailable
+
+        input_text = json.dumps(arguments or {}, default=str)
+
+        def _wrap(payload: Any) -> str:
+            body = json.dumps(payload, default=str)
+            annotated = tokens.annotate(payload, input_text=input_text, output_text=body, tool=name)
+            return json.dumps(annotated, default=str)
+
+        spec = _TOOLS.get(name)
+        if spec is None:
+            return [TextContent(type="text", text=_wrap({"error": f"unknown tool: {name}"}))]
+        handler: Callable[..., Any] = spec["fn"]
         try:
             result = handler(**(arguments or {}))
         except NotImplementedError as exc:
-            return [TextContent(type="text", text=json.dumps({"error": str(exc), "tool": name}))]
+            return [TextContent(type="text", text=_wrap({"error": str(exc), "tool": name}))]
         except (GraphifyUnavailable, UnderstandUnavailable) as exc:
-            return [TextContent(type="text", text=json.dumps({"error": str(exc), "tool": name, "backend": exc.__class__.__name__}))]
+            return [TextContent(type="text", text=_wrap({"error": str(exc), "tool": name, "backend": exc.__class__.__name__}))]
         except Exception as exc:
             logger.exception("tool %s failed", name)
-            return [TextContent(type="text", text=json.dumps({"error": str(exc), "tool": name}))]
-        return [TextContent(type="text", text=json.dumps(result, default=str))]
+            return [TextContent(type="text", text=_wrap({"error": str(exc), "tool": name}))]
+        return [TextContent(type="text", text=_wrap(result))]
 
     async def _main() -> None:
         async with stdio_server() as (read, write):

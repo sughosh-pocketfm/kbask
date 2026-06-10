@@ -30,6 +30,10 @@ dev = [
     "pytest-asyncio>=0.23",
     "ruff>=0.6",
 ]
+# `pip install kbask[tokens]` swaps the chars/4 heuristic for tiktoken.
+tokens = [
+    "tiktoken>=0.7",
+]
 
 [project.scripts]
 kbask = "kbask.cli:main"
