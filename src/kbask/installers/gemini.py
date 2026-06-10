@@ -10,6 +10,7 @@ from pathlib import Path
 from kbask.installers.common import (
     SERVER_NAME,
     backup,
+    install_slash_command,
     resolve_out_dir,
     resolve_uvx,
     server_args,
@@ -25,6 +26,8 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
         help="Gemini home dir. Defaults to $GEMINI_HOME or ~/.gemini.",
     )
     parser.add_argument("--source", help="uvx --from value. Defaults to $KBASK_SOURCE or the git repo.")
+    parser.add_argument("--no-slash-command", action="store_true",
+                        help="Skip writing the /kbask slash command.")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--skip-smoke-test", action="store_true")
 
@@ -52,6 +55,9 @@ def main(args: argparse.Namespace) -> int:
     data.setdefault("mcpServers", {})[SERVER_NAME] = entry
     config_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     print(f"installed '{SERVER_NAME}' in {config_path}")
+
+    if not args.no_slash_command:
+        install_slash_command(gemini_home / "commands" / "kbask.toml", fmt="toml")
 
     if not args.skip_smoke_test:
         smoke_test(uvx, server_args(out_dir, args.source))

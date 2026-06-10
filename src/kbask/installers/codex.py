@@ -11,6 +11,7 @@ from pathlib import Path
 from kbask.installers.common import (
     SERVER_NAME,
     backup,
+    install_slash_command,
     resolve_out_dir,
     resolve_uvx,
     server_args,
@@ -53,6 +54,8 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument("--startup-timeout-sec", type=int, default=120)
     parser.add_argument("--source", help="uvx --from value. Defaults to $KBASK_SOURCE or the git repo.")
+    parser.add_argument("--no-slash-command", action="store_true",
+                        help="Skip writing the /kbask slash command.")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--skip-smoke-test", action="store_true")
 
@@ -80,6 +83,9 @@ def main(args: argparse.Namespace) -> int:
         print(f"installed '{SERVER_NAME}' in {config_path}")
     else:
         print(f"no change: {config_path}")
+
+    if not args.no_slash_command:
+        install_slash_command(codex_home / "prompts" / "kbask.md", fmt="markdown")
 
     if not args.skip_smoke_test:
         smoke_test(uvx, server_args(out_dir, args.source))

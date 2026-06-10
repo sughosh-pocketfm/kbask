@@ -78,6 +78,56 @@ def server_args(out_dir: Path, source: str | None = None) -> List[str]:
     ]
 
 
+PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "kbask.md"
+
+
+def _read_prompt() -> Tuple[str, str]:
+    """Return (description, body) parsed from the bundled kbask.md prompt."""
+    raw = PROMPT_PATH.read_text(encoding="utf-8")
+    description = "Query the kbask MCP server for code knowledge."
+    body = raw
+    if raw.startswith("---\n"):
+        end = raw.find("\n---\n", 4)
+        if end != -1:
+            front = raw[4:end]
+            body = raw[end + 5 :].lstrip("\n")
+            for ln in front.splitlines():
+                if ln.startswith("description:"):
+                    description = ln.split(":", 1)[1].strip()
+                    break
+    return description, body
+
+
+def install_slash_command(dest: Path, fmt: str = "markdown") -> None:
+    """Write the /kbask slash command at `dest`.
+
+    fmt:
+      - "markdown": Claude Code / Codex CLI flavor (frontmatter + body).
+      - "toml":     Gemini CLI flavor (`description` + `prompt`).
+    """
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    description, body = _read_prompt()
+
+    if fmt == "markdown":
+        content = PROMPT_PATH.read_text(encoding="utf-8")
+    elif fmt == "toml":
+        prompt_literal = body.replace('"""', '\\"\\"\\"')
+        content = (
+            f"description = {json.dumps(description)}\n"
+            f'prompt = """\n{prompt_literal}"""\n'
+        )
+    else:
+        raise ValueError(f"unknown slash-command format: {fmt!r}")
+
+    if dest.exists():
+        if dest.read_text(encoding="utf-8") == content:
+            print(f"slash command up to date: {dest}")
+            return
+        print(f"backup: {backup(dest)}")
+    dest.write_text(content, encoding="utf-8")
+    print(f"wrote slash command: {dest}")
+
+
 def backup(path: Path) -> Path:
     stamp = datetime.now().strftime("%Y%m%d%H%M%S")
     backup_path = path.with_name(f"{path.name}.bak-{stamp}")

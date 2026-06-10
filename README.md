@@ -63,8 +63,15 @@ uvx kbask install claude --repo .
 
 1. Creates `<repo>/kbask-out/` if missing.
 2. Appends `kbask-out/` to `<repo>/.gitignore`.
-3. Writes/upserts the host's config (timestamped backup of any existing file).
-4. Runs an MCP `initialize` + `tools/list` smoke test against the configured server.
+3. Writes/upserts the host's MCP server config (timestamped backup of any existing file).
+4. Writes a `/kbask` slash command for the host:
+   - Claude Code → `<repo>/.claude/commands/kbask.md`
+   - Codex CLI → `~/.codex/prompts/kbask.md`
+   - Gemini CLI → `~/.gemini/commands/kbask.toml`
+   - Pass `--no-slash-command` to skip.
+5. Runs an MCP `initialize` + `tools/list` smoke test against the configured server.
+
+After restart, you can invoke the slash command from chat: type `/kbask how does X work?` (or just `/kbask` to see its prompt).
 
 ### Pin to a fork or tag
 
