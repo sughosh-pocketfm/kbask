@@ -85,18 +85,19 @@ askme update .
 │      → dirty = added | modified
 │      → preserved = unchanged
 │      → removed = deleted from repo
-├── 3. Carry over semantic entries for preserved files
-├── 4. Invoke Understand-Anything ONLY on dirty set
-├── 5. Drop semantic entries for removed files
-└── 6. Write knowledge-graph.json + meta.json (with new hashes, timestamps, versions)
+├── 3. Mirror <repo>/.understand-anything/knowledge-graph.json → askme-out/
+├── 4. Carry forward unchanged file entries; mark dirty/removed in meta.json
+└── 5. Write meta.json (new hashes, timestamps, versions)
 ```
+
+> **Note on the semantic graph.** Understand-Anything has no self-running analyzer — its knowledge graph is built by an LLM (Claude Code) following the upstream plugin's prompts and persisted to `<repo>/.understand-anything/knowledge-graph.json`. `askme update` *mirrors* that file into `askme-out/`; rebuilding the upstream graph is owned by the LLM (e.g. `/understand-update` in Claude Code). If `<repo>/.understand-anything/` is absent, semantic tools still report a clean "not built" error and structural tools keep working.
 
 Flags:
 
 - `askme update .` — incremental (default)
 - `askme update . --force` — full rebuild, ignore meta.json
 - `askme update . --dry-run` — print planned work, no writes
-- `askme update . --structural-only` — Graphify only, skip semantic (rare, e.g. for cheap sanity)
+- `askme update . --structural-only` — Graphify only, skip semantic mirror
 
 ---
 
@@ -219,8 +220,10 @@ Design rules:
 |---|---|
 | Repo scaffold + MCP stdio entry | ✅ |
 | Graphify pass-through tools | 🚧 wiring in progress |
-| Incremental `askme update` | 🚧 wiring in progress |
-| Semantic tools (Understand-Anything subprocess) | 🚧 stubs |
+| Incremental `askme update` | ✅ implemented (structural rebuild + semantic mirror) |
+| Structural MCP tools (Graphify) | ✅ wired via `graphify.serve` internals |
+| Semantic MCP tools (Understand-Anything) | ✅ read knowledge-graph.json directly |
+| Hybrid `ask` / `trace` / `onboard` | ✅ compose structural + semantic |
 | Hybrid `ask` / `trace` / `onboard` | 🚧 stubs |
 | Claude / Codex / Gemini installers | 🚧 in progress |
 | AGY installer | ⏳ blocked on config-path docs |

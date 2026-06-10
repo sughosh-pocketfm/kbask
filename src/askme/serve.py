@@ -14,6 +14,7 @@ import sys
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict
 
+from askme import state
 from askme.tools import hybrid, semantic, structural
 
 
@@ -53,6 +54,7 @@ _TOOLS: Dict[str, Dict[str, Any]] = {
             "type": "object",
             "properties": {
                 "label": {"type": "string"},
+                "relation_filter": {"type": "string"},
                 "depth": {"type": "integer", "default": 1, "minimum": 1, "maximum": 3},
             },
             "required": ["label"],
@@ -88,6 +90,7 @@ _TOOLS: Dict[str, Dict[str, Any]] = {
             "properties": {
                 "source": {"type": "string"},
                 "target": {"type": "string"},
+                "max_hops": {"type": "integer", "default": 8, "minimum": 1, "maximum": 20},
             },
             "required": ["source", "target"],
         },
@@ -183,6 +186,7 @@ def run(out_dir: Path) -> int:
     # Log to stderr — stdout is sacred (JSON-RPC frames live there).
     logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="askme: %(message)s")
 
+    state.set_out_dir(out_dir)
     if not out_dir.exists():
         logger.warning("askme-out directory %s does not exist; serving in degraded mode", out_dir)
 
@@ -209,10 +213,14 @@ def run(out_dir: Path) -> int:
         if spec is None:
             return [TextContent(type="text", text=json.dumps({"error": f"unknown tool: {name}"}))]
         handler: Callable[..., Any] = spec["fn"]
+        from askme.backends.graphify import GraphifyUnavailable
+        from askme.backends.understand import UnderstandUnavailable
         try:
             result = handler(**(arguments or {}))
         except NotImplementedError as exc:
             return [TextContent(type="text", text=json.dumps({"error": str(exc), "tool": name}))]
+        except (GraphifyUnavailable, UnderstandUnavailable) as exc:
+            return [TextContent(type="text", text=json.dumps({"error": str(exc), "tool": name, "backend": exc.__class__.__name__}))]
         except Exception as exc:
             logger.exception("tool %s failed", name)
             return [TextContent(type="text", text=json.dumps({"error": str(exc), "tool": name}))]

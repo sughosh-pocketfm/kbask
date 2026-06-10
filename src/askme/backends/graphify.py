@@ -1,9 +1,13 @@
 """Graphify backend.
 
-Imports the `graphifyy` package directly when available so we don't pay
-subprocess overhead per MCP call. Falls back to `uvx --from graphifyy ...`
-subprocesses for the `update` command, which we keep delegating to the
-upstream CLI to avoid duplicating its file-discovery + tree-sitter logic.
+The Graphify Python package (`graphifyy` on PyPI, importable as `graphify`)
+ships a fully built MCP server in `graphify.serve`. We reuse its internal
+helpers (`_load_graph`, `_score_nodes`, `_bfs`, `_dfs`, ...) instead of
+duplicating the traversal logic. These are prefixed with `_` but they
+form a stable internal API in practice; we pin the dependency to track it.
+
+For the `update` command we shell out to the `graphify` CLI so we inherit
+its file-discovery, tree-sitter, and community-detection logic unchanged.
 """
 
 from __future__ import annotations
@@ -12,14 +16,19 @@ import importlib
 import json
 import shutil
 import subprocess
-import sys
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
+
+from askme import state
 
 
 class GraphifyUnavailable(RuntimeError):
     pass
 
+
+# ------------------------------------------------------------------
+# Version / availability
+# ------------------------------------------------------------------
 
 def version() -> str:
     try:
@@ -29,14 +38,18 @@ def version() -> str:
         return "not-installed"
 
 
+# ------------------------------------------------------------------
+# Update (delegates to graphify CLI)
+# ------------------------------------------------------------------
+
 def update(repo: Path, graph_path: Path) -> None:
-    """Run `graphify update .` and ensure the output lands at graph_path."""
+    """Run `graphify update .` in `repo` and place the output at `graph_path`."""
     cli = shutil.which("graphify")
     if cli is None:
         uvx = shutil.which("uvx")
         if uvx is None:
             raise GraphifyUnavailable(
-                "Neither 'graphify' nor 'uvx' was found on PATH. "
+                "Neither 'graphify' nor 'uvx' found on PATH. "
                 "Install with: uv tool install graphifyy"
             )
         cmd = [uvx, "--from", "graphifyy", "graphify", "update", "."]
@@ -60,37 +73,186 @@ def update(repo: Path, graph_path: Path) -> None:
         graph_path.write_bytes(default_output.read_bytes())
 
 
-def load_graph(graph_path: Path) -> Dict[str, Any]:
-    return json.loads(graph_path.read_text(encoding="utf-8"))
+# ------------------------------------------------------------------
+# Graph state (lazy-loaded)
+# ------------------------------------------------------------------
+
+_graph_cache: Dict[str, Any] = {}
 
 
-# --- MCP tool surface ----------------------------------------------------
-#
-# The Graphify MCP server exposes seven tools (query_graph, get_node,
-# get_neighbors, get_community, god_nodes, graph_stats, shortest_path).
-# We re-export them as Python callables that operate on a loaded graph
-# dict so tools/structural.py can wrap them as MCP tool handlers without
-# additional subprocess hops.
-#
-# TODO: bind these to the upstream implementations in graphify.serve.
-# For now they raise NotImplementedError so MCP `tools/list` works while
-# we wire up real handlers.
-
-
-def _not_implemented(name: str) -> "Any":
-    def stub(*_: object, **__: object) -> Any:
-        raise NotImplementedError(
-            f"askme: graphify.{name} handler not yet wired. "
-            f"Run `askme health` to check backend state."
+def _load() -> Dict[str, Any]:
+    """Load (or reload on path change) the networkx graph + communities."""
+    path = state.graph_path()
+    if not path.exists():
+        raise GraphifyUnavailable(
+            f"graph.json not found at {path}. Run `askme update <repo>` first."
         )
+    key = str(path.resolve()) + ":" + str(path.stat().st_mtime_ns)
+    if _graph_cache.get("key") == key:
+        return _graph_cache
 
-    return stub
+    try:
+        from graphify import serve as gs  # type: ignore[import-not-found]
+    except ImportError as exc:
+        raise GraphifyUnavailable(
+            "graphifyy not installed in this environment. "
+            "Install via `uv pip install graphifyy` or the askme-mcp extras."
+        ) from exc
+
+    G = gs._load_graph(str(path))
+    communities = gs._communities_from_graph(G)
+    _graph_cache.clear()
+    _graph_cache.update({"key": key, "G": G, "communities": communities, "gs": gs})
+    return _graph_cache
 
 
-query_graph = _not_implemented("query_graph")
-get_node = _not_implemented("get_node")
-get_neighbors = _not_implemented("get_neighbors")
-get_community = _not_implemented("get_community")
-god_nodes = _not_implemented("god_nodes")
-graph_stats = _not_implemented("graph_stats")
-shortest_path = _not_implemented("shortest_path")
+def _label(d: Dict[str, Any], nid: str) -> str:
+    return d.get("label") or nid
+
+
+# ------------------------------------------------------------------
+# MCP tool surface — return dict bundles (host LLM synthesizes)
+# ------------------------------------------------------------------
+
+def query_graph(question: str, depth: int = 3, mode: str = "bfs", token_budget: int = 2000) -> Dict[str, Any]:
+    cache = _load()
+    G, gs = cache["G"], cache["gs"]
+    terms = [t.lower() for t in question.split() if len(t) > 2]
+    scored = gs._score_nodes(G, terms)
+    starts = [nid for _, nid in scored[:3]]
+    if not starts:
+        return {"matches": [], "text": "No matching nodes found.", "starts": []}
+    depth = max(1, min(int(depth), 6))
+    nodes, edges = (gs._dfs(G, starts, depth) if mode == "dfs" else gs._bfs(G, starts, depth))
+    text = gs._subgraph_to_text(G, nodes, edges, int(token_budget))
+    return {
+        "mode": mode,
+        "depth": depth,
+        "starts": [{"id": n, "label": _label(G.nodes[n], n)} for n in starts],
+        "node_count": len(nodes),
+        "edge_count": len(edges),
+        "text": text,
+    }
+
+
+def get_node(label: str) -> Dict[str, Any]:
+    cache = _load()
+    G = cache["G"]
+    needle = label.lower()
+    matches = [(nid, d) for nid, d in G.nodes(data=True)
+               if needle in (d.get("label") or "").lower() or needle == nid.lower()]
+    if not matches:
+        return {"error": f"no node matching {label!r}"}
+    nid, d = matches[0]
+    return {
+        "id": nid,
+        "label": _label(d, nid),
+        "source_file": d.get("source_file", ""),
+        "source_location": d.get("source_location", ""),
+        "file_type": d.get("file_type", ""),
+        "community": d.get("community", None),
+        "degree": G.degree(nid),
+    }
+
+
+def get_neighbors(label: str, relation_filter: Optional[str] = None, depth: int = 1) -> Dict[str, Any]:
+    cache = _load()
+    G, gs = cache["G"], cache["gs"]
+    matches = gs._find_node(G, label)
+    if not matches:
+        return {"error": f"no node matching {label!r}", "neighbors": []}
+    nid = matches[0]
+    rel_filter = (relation_filter or "").lower()
+    out: List[Dict[str, Any]] = []
+    for n in G.neighbors(nid):
+        ed = G.edges[nid, n]
+        rel = ed.get("relation", "")
+        if rel_filter and rel_filter not in rel.lower():
+            continue
+        out.append({
+            "id": n,
+            "label": _label(G.nodes[n], n),
+            "relation": rel,
+            "confidence": ed.get("confidence", ""),
+        })
+    return {"node": {"id": nid, "label": _label(G.nodes[nid], nid)}, "neighbors": out}
+
+
+def get_community(community_id: int) -> Dict[str, Any]:
+    cache = _load()
+    G, communities = cache["G"], cache["communities"]
+    nodes = communities.get(int(community_id), [])
+    if not nodes:
+        return {"error": f"community {community_id} not found", "members": []}
+    return {
+        "community_id": int(community_id),
+        "size": len(nodes),
+        "members": [
+            {"id": n, "label": _label(G.nodes[n], n), "source_file": G.nodes[n].get("source_file", "")}
+            for n in nodes
+        ],
+    }
+
+
+def god_nodes(top_n: int = 10, limit: Optional[int] = None) -> Dict[str, Any]:
+    # Accept either `top_n` (graphify convention) or `limit` (askme schema).
+    cache = _load()
+    G = cache["G"]
+    from graphify.analyze import god_nodes as _god  # type: ignore[import-not-found]
+    n = int(limit if limit is not None else top_n)
+    return {"god_nodes": _god(G, top_n=n)}
+
+
+def graph_stats() -> Dict[str, Any]:
+    cache = _load()
+    G, communities = cache["G"], cache["communities"]
+    confs = [d.get("confidence", "EXTRACTED") for _, _, d in G.edges(data=True)]
+    total = len(confs) or 1
+    def pct(label: str) -> int:
+        return round(confs.count(label) / total * 100)
+    return {
+        "nodes": G.number_of_nodes(),
+        "edges": G.number_of_edges(),
+        "communities": len(communities),
+        "confidence_pct": {
+            "EXTRACTED": pct("EXTRACTED"),
+            "INFERRED": pct("INFERRED"),
+            "AMBIGUOUS": pct("AMBIGUOUS"),
+        },
+    }
+
+
+def shortest_path(source: str, target: str, max_hops: int = 8) -> Dict[str, Any]:
+    cache = _load()
+    G, gs = cache["G"], cache["gs"]
+    try:
+        import networkx as nx  # type: ignore[import-not-found]
+    except ImportError as exc:
+        raise GraphifyUnavailable("networkx not installed") from exc
+
+    src_scored = gs._score_nodes(G, [t.lower() for t in source.split()])
+    tgt_scored = gs._score_nodes(G, [t.lower() for t in target.split()])
+    if not src_scored:
+        return {"error": f"no node matching source {source!r}"}
+    if not tgt_scored:
+        return {"error": f"no node matching target {target!r}"}
+    src_nid, tgt_nid = src_scored[0][1], tgt_scored[0][1]
+    try:
+        path = nx.shortest_path(G, src_nid, tgt_nid)
+    except (nx.NetworkXNoPath, nx.NodeNotFound):
+        return {"error": "no path", "source": src_nid, "target": tgt_nid}
+    hops = len(path) - 1
+    if hops > int(max_hops):
+        return {"error": f"path exceeds max_hops={max_hops}", "hops": hops}
+
+    segments: List[Dict[str, Any]] = []
+    for i in range(len(path) - 1):
+        u, v = path[i], path[i + 1]
+        ed = G.edges[u, v]
+        segments.append({
+            "from": {"id": u, "label": _label(G.nodes[u], u), "source_file": G.nodes[u].get("source_file", "")},
+            "to": {"id": v, "label": _label(G.nodes[v], v), "source_file": G.nodes[v].get("source_file", "")},
+            "relation": ed.get("relation", ""),
+            "confidence": ed.get("confidence", ""),
+        })
+    return {"hops": hops, "path": segments}

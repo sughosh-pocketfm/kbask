@@ -86,22 +86,17 @@ def run(repo: Path, *, force: bool, dry_run: bool, structural_only: bool) -> int
 
     if not structural_only:
         dirty_list = sorted(delta.dirty)
-        if dirty_list or delta.removed:
-            logger.info("running understand-anything on %d dirty files", len(dirty_list))
-            try:
-                understand.update(
-                    repo=repo,
-                    knowledge_graph_path=knowledge_graph_path,
-                    dirty=dirty_list,
-                    full_rebuild=force,
-                )
-            except NotImplementedError as exc:
-                logger.warning("semantic backend not yet wired: %s", exc)
-            except understand.UnderstandUnavailable as exc:
-                logger.error("semantic backend failed: %s", exc)
-                return 1
-        else:
-            logger.info("no semantic work needed — all files unchanged")
+        logger.info("mirroring understand-anything knowledge graph (dirty=%d)", len(dirty_list))
+        try:
+            understand.update(
+                repo=repo,
+                knowledge_graph_path=knowledge_graph_path,
+                dirty=dirty_list,
+                full_rebuild=force,
+            )
+        except understand.UnderstandUnavailable as exc:
+            # Soft-fail: structural index still useful on its own.
+            logger.warning("semantic graph not available: %s", exc)
 
     new_files = carry_forward(previous, delta, current_hashes)
     new_meta = Meta(
