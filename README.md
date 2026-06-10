@@ -26,37 +26,60 @@ Graphify tells you **where** things are. Understand-Anything tells you **why** t
 
 ## Install
 
-> **Status:** `kbask` is **not yet on PyPI**. Install straight from GitHub.
-> Once published, `--from kbask` will resolve from PyPI without changes.
+> **Status:** `kbask` is **not yet on PyPI**. Install from a GitHub Release or
+> directly from source. Once published, `--from kbask` resolves from PyPI
+> without changes.
 
-### Fastest — curl bootstrap (recommended)
+Two install styles. Pick one:
 
-Run inside the project repo you want indexed:
+### A. Persistent CLI (`uv tool install`)
+
+Puts `kbask` on your PATH for repeated use:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sughosh-pocketfm/kbask/main/tool-install.sh | bash
+```
+
+The script:
+1. Installs `uv` if missing.
+2. Resolves the latest GitHub Release wheel (`KBASK_TAG=v0.1.1` to pin).
+3. Falls back to `git+https://github.com/sughosh-pocketfm/kbask` if no release exists yet.
+4. Runs `uv tool install` so `kbask` lands in `$HOME/.local/bin`.
+
+After install:
+```bash
+kbask install claude --repo .
+kbask update .
+kbask --help
+```
+
+Upgrade later:
+```bash
+uv tool upgrade kbask
+# or rerun the curl one-liner
+```
+
+### B. One-shot installer for an MCP host
+
+Wires kbask into a single host's MCP config without leaving a persistent `kbask` binary:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/sughosh-pocketfm/kbask/main/install.sh | bash -s claude
 # or: bash -s codex   |   bash -s gemini
 ```
 
-The bootstrap script:
-1. Auto-installs `uv` if missing (via Astral's installer).
-2. Configures git credentials via `gh auth setup-git` when `gh` is available (no-op for public repo, future-proofs the private-fork case).
-3. Runs the host installer with sensible defaults.
+The host config itself uses `uvx --from git+...` so the MCP server runs
+without a global install.
 
-### uvx direct (no bootstrap)
+### Manual paths
 
 ```bash
+# uvx direct (no scripts)
 uvx --from git+https://github.com/sughosh-pocketfm/kbask kbask install claude --repo .
-uvx --from git+https://github.com/sughosh-pocketfm/kbask kbask install codex  --repo .
-uvx --from git+https://github.com/sughosh-pocketfm/kbask kbask install gemini --repo .
-```
 
-### After PyPI publish
-
-```bash
+# After PyPI publish
+uv tool install kbask
 uvx --from kbask kbask install claude --repo .
-# or simply (pkg + script share a name):
-uvx kbask install claude --repo .
 ```
 
 ### What the installer does
@@ -311,6 +334,29 @@ Design rules:
 3. **stdout is sacred.** All logs to stderr. stdout is reserved for JSON-RPC frames.
 4. **No host detection.** Server behaves identically regardless of caller. No Claude-isms.
 5. **No auto-rebuild.** Host decides when to refresh — no file watchers, no background work.
+
+---
+
+## Releases
+
+Cutting a release:
+
+```bash
+# 1. Bump pyproject.toml `version` and src/kbask/__init__.py `__version__` (keep them in sync).
+# 2. Commit and tag:
+git commit -am "Release v0.1.1"
+git tag v0.1.1
+git push origin main --tags
+```
+
+The `release` GitHub Action (`.github/workflows/release.yml`) fires on the tag:
+- Builds wheel + sdist via `uv build`.
+- Smoke-tests the wheel (`kbask --help`).
+- Generates `SHA256SUMS`.
+- Creates a GitHub Release with `*.whl`, `*.tar.gz`, `SHA256SUMS`, `install.sh`, and `tool-install.sh` attached.
+- Publishes to PyPI if the `PYPI_TOKEN` repo secret is set.
+
+`tool-install.sh` (curl path) auto-discovers the latest release and prefers the wheel asset over the git source.
 
 ---
 

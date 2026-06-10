@@ -1,0 +1,91 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag name (e.g. v0.1.1). Required for manual runs."
+        required: true
+
+permissions:
+  contents: write  # required to create the GitHub Release
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Verify version matches tag
+        run: |
+          set -euo pipefail
+          PY_VERSION="$(uv run --no-project python -c "import tomllib,sys;print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")"
+          TAG="${{ steps.tag.outputs.tag }}"
+          TAG_NUM="${TAG#v}"
+          if [ "$PY_VERSION" != "$TAG_NUM" ]; then
+            echo "pyproject.toml version ($PY_VERSION) does not match tag ($TAG_NUM)" >&2
+            exit 1
+          fi
+
+      - name: Build wheel and sdist
+        run: uv build
+
+      - name: List artifacts
+        run: ls -la dist/
+
+      - name: Smoke test wheel
+        run: |
+          set -euo pipefail
+          uv venv .smoke
+          source .smoke/bin/activate
+          uv pip install dist/*.whl
+          kbask --help
+          kbask install --help || true
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          shasum -a 256 *.whl *.tar.gz > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: kbask ${{ steps.tag.outputs.tag }}
+          generate_release_notes: true
+          files: |
+            dist/*.whl
+            dist/*.tar.gz
+            dist/SHA256SUMS
+            install.sh
+            tool-install.sh
+
+      - name: Publish to PyPI
+        if: ${{ env.PYPI_TOKEN != '' }}
+        env:
+          PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
+        run: uv publish --token "${PYPI_TOKEN}"
