@@ -36,11 +36,28 @@ def resolve_uvx() -> str:
 def resolve_out_dir(repo: Path) -> Path:
     out = (repo / "askme-out").resolve()
     if not out.exists():
-        raise SystemExit(
-            f"askme-out not found at {out}\n"
-            "Build it first:  uvx --from askme-mcp askme update ."
-        )
+        out.mkdir(parents=True, exist_ok=True)
+        print(f"created {out}")
+        print("populate it with:  uvx --from askme-mcp askme update .")
+    ensure_gitignore(repo, "askme-out/")
     return out
+
+
+def ensure_gitignore(repo: Path, pattern: str) -> None:
+    """Append `pattern` to <repo>/.gitignore if not already present."""
+    gi = repo / ".gitignore"
+    if gi.exists():
+        lines = gi.read_text(encoding="utf-8").splitlines()
+        existing = {ln.strip() for ln in lines}
+        if pattern in existing or pattern.rstrip("/") in existing:
+            return
+        prefix = "" if not lines or lines[-1] == "" else "\n"
+        with gi.open("a", encoding="utf-8") as fh:
+            fh.write(f"{prefix}{pattern}\n")
+        print(f"added '{pattern}' to {gi}")
+    else:
+        gi.write_text(f"{pattern}\n", encoding="utf-8")
+        print(f"created {gi} with '{pattern}'")
 
 
 def server_args(out_dir: Path) -> List[str]:
