@@ -12,12 +12,19 @@ Pick the smallest tool that answers the question. Do not chain unless needed.
 
 | User intent | First tool |
 |---|---|
-| "how does X work?" / "explain X" | `kbask.ask` (hybrid: structural BFS + semantic narrative) |
+| "how does X work?" / "explain X" | `kbask.ask` (hybrid: structural -> semantic -> file fallback) |
 | "trace flow from A to B" / "what calls Y" | `kbask.trace` |
 | "onboard me to module Z" / "tour the auth area" | `kbask.onboard` |
 | Need a single file/symbol explanation | `kbask.semantic_explain` |
 | Need raw edges, neighbors, paths | `kbask.query_graph` / `kbask.get_neighbors` / `kbask.shortest_path` |
 | Need repo stats / hot spots | `kbask.graph_stats` / `kbask.god_nodes` |
+
+`kbask.ask` does a three-stage cascade for broad questions:
+1. Structural BFS via graphify.
+2. If the structural result was too broad, semantic chat via understand-anything.
+3. If both miss, file-path candidates that the caller LLM should Read directly.
+
+Inspect `stages_used` in the response to know which stages fired.
 
 ## Rules
 
