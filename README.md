@@ -26,11 +26,13 @@ Graphify tells you **where** things are. Understand-Anything tells you **why** t
 
 ## Install
 
-> **Status:** `kbask` is **not yet on PyPI**. Install from a GitHub Release,
-> from `main`, or pinned to a tag. Once on PyPI, `--from kbask` resolves
-> from there with no other change.
+> **Latest release:** [`0.1.0`](https://github.com/sughosh-pocketfm/kbask/releases/tag/0.1.0) — assets: `kbask-0.1.0-py3-none-any.whl`, `kbask-0.1.0.tar.gz`, `SHA256SUMS`, `install.sh`, `tool-install.sh`.
+>
+> Not yet on PyPI. Install from the GitHub Release, from `main`, or pinned
+> to a tag. Once on PyPI, `--from kbask` resolves from there with no other
+> change.
 
-Releases are cut as `vX.Y.Z` git tags. The `release` GitHub Action
+Releases are cut as `X.Y.Z` git tags (the leading `v` is optional — both `0.1.0` and `v0.1.0` are accepted). The `release` GitHub Action
 builds a wheel + sdist, attaches them (and `install.sh` / `tool-install.sh` /
 `SHA256SUMS`) to the GitHub Release, and — if `PYPI_TOKEN` is configured —
 uploads the wheel to PyPI. See **[Releases](#releases)** for the cut process.
@@ -46,14 +48,14 @@ Puts `kbask` on your PATH so you can type it like any other tool:
 curl -fsSL https://raw.githubusercontent.com/sughosh-pocketfm/kbask/main/tool-install.sh | bash
 
 # Pin to a specific release tag
-KBASK_TAG=v0.1.0 \
+KBASK_TAG=0.1.0 \
   curl -fsSL https://raw.githubusercontent.com/sughosh-pocketfm/kbask/main/tool-install.sh | bash
 ```
 
 The script:
 1. Installs `uv` if missing (Astral installer).
 2. Hits `https://api.github.com/repos/sughosh-pocketfm/kbask/releases/latest`
-   to find the wheel asset. Pin a release with `KBASK_TAG=vX.Y.Z`.
+   to find the wheel asset. Pin a release with `KBASK_TAG=X.Y.Z` (e.g. `KBASK_TAG=0.1.0`).
 3. Falls back to `git+https://github.com/sughosh-pocketfm/kbask` if no
    release exists yet (or for `main`).
 4. Runs `uv tool install --force` so `kbask` lands in `~/.local/bin`.
@@ -83,7 +85,7 @@ curl -fsSL https://raw.githubusercontent.com/sughosh-pocketfm/kbask/main/install
 # or: bash -s codex   |   bash -s gemini
 
 # Pin to a tag (the MCP config gets the same pin):
-KBASK_SOURCE="git+https://github.com/sughosh-pocketfm/kbask@v0.1.0" \
+KBASK_SOURCE="git+https://github.com/sughosh-pocketfm/kbask@0.1.0" \
   curl -fsSL https://raw.githubusercontent.com/sughosh-pocketfm/kbask/main/install.sh | bash -s claude
 ```
 
@@ -94,7 +96,7 @@ KBASK_SOURCE="git+https://github.com/sughosh-pocketfm/kbask@v0.1.0" \
 uvx --from git+https://github.com/sughosh-pocketfm/kbask kbask install claude --repo .
 
 # Pinned tag
-uvx --from "git+https://github.com/sughosh-pocketfm/kbask@v0.1.0" kbask install claude --repo .
+uvx --from "git+https://github.com/sughosh-pocketfm/kbask@0.1.0" kbask install claude --repo .
 
 # From a downloaded wheel (verify SHA256SUMS first)
 uvx --from ./kbask-0.1.0-py3-none-any.whl kbask install claude --repo .
@@ -414,15 +416,15 @@ The CI release job hard-fails when the tag and the version in `pyproject.toml` d
 #    src/kbask/__init__.py: __version__ = "0.1.1"
 
 # 2. Commit + tag + push.
-git commit -am "Release v0.1.1"
-git tag v0.1.1
+git commit -am "Release 0.1.1"
+git tag 0.1.1
 git push origin main --tags
 ```
 
 Manual run (e.g. to re-cut from a fixed branch) is also supported:
 
 ```bash
-gh workflow run release.yml -f tag=v0.1.1
+gh workflow run release.yml -f tag=0.1.1
 ```
 
 ### What the release pipeline does
@@ -460,10 +462,10 @@ Once the release exists:
 curl -fsSL https://raw.githubusercontent.com/sughosh-pocketfm/kbask/main/tool-install.sh | bash
 
 # B. Pinned tag
-KBASK_TAG=v0.1.1 curl -fsSL https://raw.githubusercontent.com/sughosh-pocketfm/kbask/main/tool-install.sh | bash
+KBASK_TAG=0.1.1 curl -fsSL https://raw.githubusercontent.com/sughosh-pocketfm/kbask/main/tool-install.sh | bash
 
 # C. Direct download
-gh release download v0.1.1 --repo sughosh-pocketfm/kbask --pattern '*.whl'
+gh release download 0.1.1 --repo sughosh-pocketfm/kbask --pattern '*.whl'
 shasum -a 256 -c SHA256SUMS
 uv tool install ./kbask-0.1.1-py3-none-any.whl
 ```

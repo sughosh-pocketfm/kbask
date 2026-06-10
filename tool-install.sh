@@ -9,12 +9,12 @@
 # wheel; falls back to building from git if no release exists yet.
 #
 # Env:
-#   KBASK_TAG       pin a specific release tag (e.g. v0.1.1). Default: latest.
+#   KBASK_TAG       pin a specific release tag (e.g. 0.1.0). Default: latest.
 #   KBASK_SOURCE    override the `uv tool install` source entirely.
 #                   Examples:
 #                     - kbask                                          # PyPI
 #                     - git+https://github.com/sughosh-pocketfm/kbask  # git HEAD
-#                     - git+https://github.com/sughosh-pocketfm/kbask@v0.1.1
+#                     - git+https://github.com/sughosh-pocketfm/kbask@0.1.0
 #                     - /local/path/to/wheel.whl
 #   KBASK_REPO      GitHub repo slug. Default: sughosh-pocketfm/kbask.
 
