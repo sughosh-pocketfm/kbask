@@ -110,6 +110,82 @@ def _label(d: Dict[str, Any], nid: str) -> str:
     return d.get("label") or nid
 
 
+def _find_nodes(G, query: str, limit: int = 25) -> List[str]:
+    """Rank-ordered node lookup tolerant of labels, IDs, file paths, and basenames.
+
+    Strategies, in priority order:
+      1. exact id match
+      2. exact label match (case-insensitive)
+      3. exact source_file match
+      4. source_file endswith (handles partial paths like
+         "fmadsclient/data/source/FmAdsLocalDataSource.kt")
+      5. basename match on source_file
+      6. substring match on label
+      7. substring match on nid
+      8. graphify's diacritic-insensitive score (norm_label / id)
+    """
+    needle = query.strip()
+    if not needle:
+        return []
+    nlow = needle.lower()
+    basename = needle.split("/")[-1].lower()
+
+    exact_id: List[str] = []
+    exact_label: List[str] = []
+    exact_src: List[str] = []
+    suffix_src: List[str] = []
+    basename_src: List[str] = []
+    sub_label: List[str] = []
+    sub_id: List[str] = []
+
+    for nid, d in G.nodes(data=True):
+        nid_low = nid.lower()
+        label_low = (d.get("label") or "").lower()
+        src = (d.get("source_file") or "")
+        src_low = src.lower()
+
+        if nid_low == nlow:
+            exact_id.append(nid)
+            continue
+        if label_low == nlow:
+            exact_label.append(nid)
+            continue
+        if src_low == nlow:
+            exact_src.append(nid)
+            continue
+        if src and src_low.endswith(nlow) and "/" in nlow:
+            suffix_src.append(nid)
+            continue
+        if src and src_low.split("/")[-1] == basename:
+            basename_src.append(nid)
+            continue
+        if label_low and nlow in label_low:
+            sub_label.append(nid)
+            continue
+        if nlow in nid_low:
+            sub_id.append(nid)
+
+    ordered: List[str] = []
+    for bucket in (exact_id, exact_label, exact_src, suffix_src, basename_src, sub_label, sub_id):
+        for nid in bucket:
+            if nid not in ordered:
+                ordered.append(nid)
+                if len(ordered) >= limit:
+                    return ordered
+
+    # Fallback to graphify's scored matcher for fuzzy / diacritic cases.
+    try:
+        from graphify import serve as gs  # type: ignore[import-not-found]
+        for _, nid in gs._score_nodes(G, [t for t in nlow.split() if len(t) > 2]):
+            if nid not in ordered:
+                ordered.append(nid)
+            if len(ordered) >= limit:
+                break
+    except Exception:
+        pass
+    return ordered
+
+
 # ------------------------------------------------------------------
 # MCP tool surface — return dict bundles (host LLM synthesizes)
 # ------------------------------------------------------------------
@@ -138,13 +214,12 @@ def query_graph(question: str, depth: int = 3, mode: str = "bfs", token_budget: 
 def get_node(label: str) -> Dict[str, Any]:
     cache = _load()
     G = cache["G"]
-    needle = label.lower()
-    matches = [(nid, d) for nid, d in G.nodes(data=True)
-               if needle in (d.get("label") or "").lower() or needle == nid.lower()]
-    if not matches:
+    nids = _find_nodes(G, label, limit=10)
+    if not nids:
         return {"error": f"no node matching {label!r}"}
-    nid, d = matches[0]
-    return {
+    nid = nids[0]
+    d = G.nodes[nid]
+    out = {
         "id": nid,
         "label": _label(d, nid),
         "source_file": d.get("source_file", ""),
@@ -153,12 +228,18 @@ def get_node(label: str) -> Dict[str, Any]:
         "community": d.get("community", None),
         "degree": G.degree(nid),
     }
+    if len(nids) > 1:
+        out["other_matches"] = [
+            {"id": n, "label": _label(G.nodes[n], n), "source_file": G.nodes[n].get("source_file", "")}
+            for n in nids[1:6]
+        ]
+    return out
 
 
 def get_neighbors(label: str, relation_filter: Optional[str] = None, depth: int = 1) -> Dict[str, Any]:
     cache = _load()
-    G, gs = cache["G"], cache["gs"]
-    matches = gs._find_node(G, label)
+    G = cache["G"]
+    matches = _find_nodes(G, label, limit=5)
     if not matches:
         return {"error": f"no node matching {label!r}", "neighbors": []}
     nid = matches[0]
@@ -175,7 +256,17 @@ def get_neighbors(label: str, relation_filter: Optional[str] = None, depth: int 
             "relation": rel,
             "confidence": ed.get("confidence", ""),
         })
-    return {"node": {"id": nid, "label": _label(G.nodes[nid], nid)}, "neighbors": out}
+    bundle: Dict[str, Any] = {
+        "node": {"id": nid, "label": _label(G.nodes[nid], nid),
+                 "source_file": G.nodes[nid].get("source_file", "")},
+        "neighbors": out,
+    }
+    if len(matches) > 1:
+        bundle["other_matches"] = [
+            {"id": n, "label": _label(G.nodes[n], n), "source_file": G.nodes[n].get("source_file", "")}
+            for n in matches[1:5]
+        ]
+    return bundle
 
 
 def get_community(community_id: int) -> Dict[str, Any]:
@@ -224,19 +315,19 @@ def graph_stats() -> Dict[str, Any]:
 
 def shortest_path(source: str, target: str, max_hops: int = 8) -> Dict[str, Any]:
     cache = _load()
-    G, gs = cache["G"], cache["gs"]
+    G = cache["G"]
     try:
         import networkx as nx  # type: ignore[import-not-found]
     except ImportError as exc:
         raise GraphifyUnavailable("networkx not installed") from exc
 
-    src_scored = gs._score_nodes(G, [t.lower() for t in source.split()])
-    tgt_scored = gs._score_nodes(G, [t.lower() for t in target.split()])
-    if not src_scored:
+    src_matches = _find_nodes(G, source, limit=3)
+    tgt_matches = _find_nodes(G, target, limit=3)
+    if not src_matches:
         return {"error": f"no node matching source {source!r}"}
-    if not tgt_scored:
+    if not tgt_matches:
         return {"error": f"no node matching target {target!r}"}
-    src_nid, tgt_nid = src_scored[0][1], tgt_scored[0][1]
+    src_nid, tgt_nid = src_matches[0], tgt_matches[0]
     try:
         path = nx.shortest_path(G, src_nid, tgt_nid)
     except (nx.NetworkXNoPath, nx.NodeNotFound):
