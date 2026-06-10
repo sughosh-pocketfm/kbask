@@ -115,7 +115,7 @@ What it does:
 Override the source if you fork the repo or pin to a tag:
 
 ```bash
-KBASK_SOURCE=git+https://github.com/your-fork/ask-me@v0.2.0 \
+KBASK_SOURCE=git+https://github.com/your-fork/kbask@v0.2.0 \
   uvx --from $KBASK_SOURCE kbask install claude --repo .
 ```
 
@@ -285,7 +285,7 @@ This is an alpha MVP. APIs may change.
 
 ```bash
 git clone https://github.com/sughosh-pocketfm/kbask.git
-cd ask-me
+cd kbask
 uv venv && source .venv/bin/activate
 uv pip install -e ".[dev]"
 pytest

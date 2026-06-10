@@ -62,7 +62,7 @@ upstream design owns rebuilding; kbask owns serving.
 ## Repo layout
 
 ```
-ask-me/
+kbask/
 ├── pyproject.toml              # package metadata, deps (mcp, graphifyy)
 ├── README.md                   # user-facing docs
 ├── CLAUDE.md                   # ← you are here
@@ -236,20 +236,20 @@ Tool handlers MUST:
 ### Local dev loop
 ```bash
 # from a sibling repo that has a graphify-out/ and .understand-anything/:
-PYTHONPATH=/Users/pocketfm/work/ask-me/src \
+PYTHONPATH=$KBASK_CHECKOUT/src \
   python3 -m kbask.cli update .
 
-PYTHONPATH=/Users/pocketfm/work/ask-me/src \
+PYTHONPATH=$KBASK_CHECKOUT/src \
   python3 -m kbask.cli health
 
 # MCP stdio server (rare to test directly; usually via a host):
-PYTHONPATH=/Users/pocketfm/work/ask-me/src \
+PYTHONPATH=$KBASK_CHECKOUT/src \
   python3 -m kbask.cli serve kbask-out/
 ```
 
 ### Run tests
 ```bash
-cd /Users/pocketfm/work/ask-me
+cd $KBASK_CHECKOUT
 PYTHONPATH=src python3 -c "
 from tests import test_diff
 for n in dir(test_diff):
