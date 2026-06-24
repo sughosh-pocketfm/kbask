@@ -336,6 +336,7 @@ uvx --from git+https://github.com/sughosh-pocketfm/kbask kbask install gemini --
 | `ask` | hybrid | Structural candidates + semantic narrative in one call |
 | `trace` | hybrid | Shortest path with semantic gloss per hop |
 | `onboard` | hybrid | Community clusters + domain knowledge per cluster |
+| `reload` | admin | Drop in-process caches; next call re-reads `kbask-out/` from disk (`target=all\|structural\|semantic`) |
 
 All tools return structured JSON. None of them call an LLM internally — they return context bundles for the calling agent's LLM to reason over. This mirrors Graphify's `token_budget` discipline and keeps the MCP host-agnostic.
 
