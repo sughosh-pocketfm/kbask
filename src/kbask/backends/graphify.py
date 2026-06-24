@@ -13,7 +13,6 @@ its file-discovery, tree-sitter, and community-detection logic unchanged.
 from __future__ import annotations
 
 import importlib
-import json
 import shutil
 import subprocess
 from pathlib import Path

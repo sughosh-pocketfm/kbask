@@ -65,12 +65,18 @@ def is_available() -> bool:
 
     Hybrid tools call this once per request so they can switch to a
     graphify-only fallback (rather than catching UnderstandUnavailable
-    on every per-entry call). Cheap: a single stat + state check.
+    on every per-entry call).
     """
     if not _state_ready():
         return False
     path = state.knowledge_graph_path()
-    return path.exists() and path.stat().st_size > 0
+    if not path.exists() or path.stat().st_size <= 0:
+        return False
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    return isinstance(data, dict)
 
 
 # ------------------------------------------------------------------

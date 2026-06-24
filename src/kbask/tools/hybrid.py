@@ -89,6 +89,15 @@ GRAPHIFY_ONLY_PROMPT = (
 )
 
 
+GRAPHIFY_ONLY_NEXT_STEPS = (
+    "Read the listed source_file paths directly, grep for the question "
+    "terms within them, and synthesize the answer. To enable semantic "
+    "narrative, build Understand-Anything in the target repo "
+    "(/understand or /understand-update in Claude Code) and rerun "
+    "`kbask update <repo>`."
+)
+
+
 def _graphify_only_ask(question: str) -> Dict[str, Any]:
     """Fallback when Understand-Anything is not built in the target repo.
 
@@ -112,13 +121,7 @@ def _graphify_only_ask(question: str) -> Dict[str, Any]:
     out["file_candidates"] = _file_candidates(question)
     if out["file_candidates"]:
         out["stages_used"].append("file_candidates")
-    out["next_steps"] = (
-        "Read the listed source_file paths directly, grep for the question "
-        "terms within them, and synthesize the answer. To enable semantic "
-        "narrative, build Understand-Anything in the target repo "
-        "(/understand or /understand-update in Claude Code) and rerun "
-        "`kbask update <repo>`."
-    )
+    out["next_steps"] = GRAPHIFY_ONLY_NEXT_STEPS
     return out
 
 
@@ -157,7 +160,10 @@ def ask(question: str, top_k: int = 5) -> Dict[str, Any]:
             if not target:
                 continue
             try:
-                semantic.append({"target": target, "explain": understand.semantic_explain(target=target)})
+                semantic.append({
+                    "target": target,
+                    "explain": understand.semantic_explain(target=target),
+                })
             except understand.UnderstandUnavailable as exc:
                 semantic.append({"target": target, "error": str(exc)})
         out["semantic"] = semantic
@@ -224,6 +230,7 @@ def trace(source: str, target: str) -> Dict[str, Any]:
         "source": source,
         "target": target,
         "mode": "hybrid" if semantic_present else "graphify-only",
+        "structural": path,
         "hops": path.get("hops"),
         "annotated_path": annotated,
     }
@@ -231,6 +238,8 @@ def trace(source: str, target: str) -> Dict[str, Any]:
         bundle["prompt_hint"] = GRAPHIFY_ONLY_PROMPT.format(
             question=f"trace from {source} to {target}"
         )
+        bundle["file_candidates"] = _file_candidates(f"{source} {target}")
+        bundle["next_steps"] = GRAPHIFY_ONLY_NEXT_STEPS
     return bundle
 
 
@@ -260,4 +269,5 @@ def onboard(area: str) -> Dict[str, Any]:
     if not semantic_present:
         bundle["prompt_hint"] = GRAPHIFY_ONLY_PROMPT.format(question=f"onboard to {area}")
         bundle["file_candidates"] = _file_candidates(area)
+        bundle["next_steps"] = GRAPHIFY_ONLY_NEXT_STEPS
     return bundle
