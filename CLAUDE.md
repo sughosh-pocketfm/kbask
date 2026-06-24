@@ -293,9 +293,9 @@ python3 scripts/install-gemini.py --kbask-out /path/to/kbask-out
 | `semantic_diff`   | semantic    | `knowledge-graph.json` precomputed `diffs[base..head]`  |
 | `semantic_onboard`| semantic    | `knowledge-graph.json` `onboarding[area]` + entities    |
 | `semantic_domain` | semantic    | `knowledge-graph.json` `domain` map                     |
-| `ask`             | hybrid      | `query_graph` → `semantic_explain` per top-k candidate  |
-| `trace`           | hybrid      | `shortest_path` → `semantic_explain` per hop            |
-| `onboard`         | hybrid      | `query_graph` + `semantic_onboard` side-by-side         |
+| `ask`             | hybrid      | `query_graph` → `semantic_explain` per top-k; **graphify-only fallback** when knowledge-graph.json absent (returns prompt hint instructing caller LLM to reason from structural data) |
+| `trace`           | hybrid      | `shortest_path` → `semantic_explain` per hop; graphify-only fallback when absent |
+| `onboard`         | hybrid      | `query_graph` + `semantic_onboard` side-by-side; graphify-only fallback when absent |
 | `reload`          | admin       | drops in-process caches; next call re-reads disk         |
 
 ---

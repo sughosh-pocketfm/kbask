@@ -80,14 +80,66 @@ def _file_candidates(question: str, limit: int = 12) -> List[Dict[str, Any]]:
     return out
 
 
+GRAPHIFY_ONLY_PROMPT = (
+    "Understand-Anything is not built for this repo. Answer the question "
+    "using ONLY the graphify structural results below + your own reading "
+    "of the listed source files (Read tool). Treat this as: "
+    "\"with graphify mcp {question}\" — no semantic narrative is available, "
+    "so reason from labels, source_file paths, relations, and file contents."
+)
+
+
+GRAPHIFY_ONLY_NEXT_STEPS = (
+    "Read the listed source_file paths directly, grep for the question "
+    "terms within them, and synthesize the answer. To enable semantic "
+    "narrative, build Understand-Anything in the target repo "
+    "(/understand or /understand-update in Claude Code) and rerun "
+    "`kbask update <repo>`."
+)
+
+
+def _graphify_only_ask(question: str) -> Dict[str, Any]:
+    """Fallback when Understand-Anything is not built in the target repo.
+
+    Returns a structural-only bundle plus a prompt hint that instructs the
+    caller LLM to reason from graphify data + direct file reads.
+    """
+    out: Dict[str, Any] = {
+        "question": question,
+        "mode": "graphify-only",
+        "join_key": "node.label",
+        "prompt_hint": GRAPHIFY_ONLY_PROMPT.format(question=question),
+        "stages_used": [],
+    }
+    try:
+        struct = graphify.query_graph(question=question, depth=3, mode="bfs", token_budget=2000)
+        out["structural"] = struct
+        out["stages_used"].append("structural")
+    except graphify.GraphifyUnavailable as exc:
+        out["structural"] = {"error": str(exc)}
+
+    out["file_candidates"] = _file_candidates(question)
+    if out["file_candidates"]:
+        out["stages_used"].append("file_candidates")
+    out["next_steps"] = GRAPHIFY_ONLY_NEXT_STEPS
+    return out
+
+
 def ask(question: str, top_k: int = 5) -> Dict[str, Any]:
     """Three-stage cascade: structural -> semantic -> file candidates.
+
+    When Understand-Anything is not built for the target repo, fall back
+    to a graphify-only bundle with a prompt hint that instructs the
+    caller LLM to reason from structural data + direct file reads.
 
     Returns a bundle with whatever stages produced useful output and
     `stages_used` so the caller knows which were tried.
     """
+    if not understand.is_available():
+        return _graphify_only_ask(question)
+
     stages_used: List[str] = []
-    out: Dict[str, Any] = {"question": question, "join_key": "node.label"}
+    out: Dict[str, Any] = {"question": question, "mode": "hybrid", "join_key": "node.label"}
 
     # Stage 1: structural BFS
     structural_broad = False
@@ -108,7 +160,10 @@ def ask(question: str, top_k: int = 5) -> Dict[str, Any]:
             if not target:
                 continue
             try:
-                semantic.append({"target": target, "explain": understand.semantic_explain(target=target)})
+                semantic.append({
+                    "target": target,
+                    "explain": understand.semantic_explain(target=target),
+                })
             except understand.UnderstandUnavailable as exc:
                 semantic.append({"target": target, "error": str(exc)})
         out["semantic"] = semantic
@@ -159,17 +214,33 @@ def trace(source: str, target: str) -> Dict[str, Any]:
     if "error" in path:
         return {"source": source, "target": target, "structural": path}
 
+    semantic_present = understand.is_available()
     annotated = []
     for seg in path.get("path", []):
         to_label = seg.get("to", {}).get("label")
         gloss: Optional[Dict[str, Any]] = None
-        if to_label:
+        if to_label and semantic_present:
             try:
                 gloss = understand.semantic_explain(target=to_label)
             except understand.UnderstandUnavailable as exc:
                 gloss = {"error": str(exc)}
         annotated.append({"hop": seg, "gloss": gloss})
-    return {"source": source, "target": target, "hops": path.get("hops"), "annotated_path": annotated}
+
+    bundle: Dict[str, Any] = {
+        "source": source,
+        "target": target,
+        "mode": "hybrid" if semantic_present else "graphify-only",
+        "structural": path,
+        "hops": path.get("hops"),
+        "annotated_path": annotated,
+    }
+    if not semantic_present:
+        bundle["prompt_hint"] = GRAPHIFY_ONLY_PROMPT.format(
+            question=f"trace from {source} to {target}"
+        )
+        bundle["file_candidates"] = _file_candidates(f"{source} {target}")
+        bundle["next_steps"] = GRAPHIFY_ONLY_NEXT_STEPS
+    return bundle
 
 
 def onboard(area: str) -> Dict[str, Any]:
@@ -179,9 +250,24 @@ def onboard(area: str) -> Dict[str, Any]:
     except graphify.GraphifyUnavailable as exc:
         return {"error": str(exc), "stage": "structural"}
 
-    try:
-        sem = understand.semantic_onboard(area=area)
-    except understand.UnderstandUnavailable as exc:
-        sem = {"error": str(exc)}
+    semantic_present = understand.is_available()
+    if semantic_present:
+        try:
+            sem = understand.semantic_onboard(area=area)
+        except understand.UnderstandUnavailable as exc:
+            sem = {"error": str(exc)}
+            semantic_present = False
+    else:
+        sem = None
 
-    return {"area": area, "structural_map": struct, "semantic_guide": sem}
+    bundle: Dict[str, Any] = {
+        "area": area,
+        "mode": "hybrid" if semantic_present else "graphify-only",
+        "structural_map": struct,
+        "semantic_guide": sem,
+    }
+    if not semantic_present:
+        bundle["prompt_hint"] = GRAPHIFY_ONLY_PROMPT.format(question=f"onboard to {area}")
+        bundle["file_candidates"] = _file_candidates(area)
+        bundle["next_steps"] = GRAPHIFY_ONLY_NEXT_STEPS
+    return bundle

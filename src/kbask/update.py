@@ -6,7 +6,7 @@ import logging
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, Iterable, List
+from typing import Dict, Iterable
 
 from kbask import __version__
 from kbask.backends import graphify, understand
@@ -123,5 +123,5 @@ def _print_plan(delta: Delta, *, structural_only: bool) -> None:
     print(f"  modified:  {len(delta.modified)}")
     print(f"  removed:   {len(delta.removed)}")
     print(f"  unchanged: {len(delta.unchanged)}")
-    print(f"  structural rebuild: yes")
+    print("  structural rebuild: yes")
     print(f"  semantic rebuild:   {'skipped (--structural-only)' if structural_only else f'{len(delta.dirty)} files'}")

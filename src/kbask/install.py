@@ -14,7 +14,7 @@ import argparse
 import importlib
 import logging
 import sys
-from typing import List, Sequence
+from typing import Sequence
 
 
 logger = logging.getLogger("kbask.install")

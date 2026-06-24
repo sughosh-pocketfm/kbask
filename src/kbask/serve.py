@@ -12,7 +12,7 @@ import json
 import logging
 import sys
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Dict
+from typing import Any, Callable, Dict
 
 from kbask import state
 from kbask.backends import graphify as _graphify_backend
