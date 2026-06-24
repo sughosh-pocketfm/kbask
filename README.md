@@ -71,9 +71,17 @@ kbask --help
 
 Upgrade:
 ```bash
+# In-place refresh from the GitHub Release (verifies SHA256SUMS):
+kbask update-bin
+# Pin a specific tag:
+kbask update-bin --tag 0.1.1
+# Or use uv directly:
 uv tool upgrade kbask
-# or rerun the curl one-liner (always uses --force)
+# Or rerun the curl one-liner (always uses --force):
+curl -fsSL https://raw.githubusercontent.com/sughosh-pocketfm/kbask/main/tool-install.sh | bash
 ```
+
+After upgrading, restart your MCP host (Claude Code / Codex / Gemini) so it respawns `kbask serve` against the new binary.
 
 ### B. One-shot host installer (no persistent CLI)
 
