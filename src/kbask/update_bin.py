@@ -25,6 +25,7 @@ import subprocess
 import sys
 import tempfile
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Optional
@@ -57,12 +58,32 @@ def _api_get(url: str, token: Optional[str]) -> dict:
         raise UpdateBinError(f"GitHub API {url} unreachable: {exc.reason}") from exc
 
 
+def _tag_candidates(tag: str) -> list[str]:
+    tag = tag.strip()
+    candidates = [tag]
+    if tag.lower().startswith("v") and len(tag) > 1 and tag[1].isdigit():
+        candidates.append(tag[1:])
+    elif tag and tag[0].isdigit():
+        candidates.append(f"v{tag}")
+    return candidates
+
+
+def _release_url(repo: str, suffix: str) -> str:
+    return f"https://api.github.com/repos/{repo}/releases/{suffix}"
+
+
 def _resolve_release(repo: str, tag: Optional[str], token: Optional[str]) -> dict:
-    if tag:
-        url = f"https://api.github.com/repos/{repo}/releases/tags/{tag}"
-    else:
-        url = f"https://api.github.com/repos/{repo}/releases/latest"
-    return _api_get(url, token)
+    if not tag:
+        return _api_get(_release_url(repo, "latest"), token)
+
+    errors: list[UpdateBinError] = []
+    for candidate in _tag_candidates(tag):
+        quoted = urllib.parse.quote(candidate, safe="")
+        try:
+            return _api_get(_release_url(repo, f"tags/{quoted}"), token)
+        except UpdateBinError as exc:
+            errors.append(exc)
+    raise errors[-1]
 
 
 def _pick_asset(release: dict, suffix: str) -> dict:
