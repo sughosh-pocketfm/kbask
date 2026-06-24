@@ -40,17 +40,32 @@ jobs:
       - name: Set up Python
         run: uv python install 3.11
 
-      - name: Verify version matches tag
+      - name: Resolve version from tag
+        id: version
         run: |
           set -euo pipefail
-          PY_VERSION="$(uv run --no-project python -c "import tomllib,sys;print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")"
           TAG="${{ steps.tag.outputs.tag }}"
           # Accept both "0.1.1" and "v0.1.1" tag styles.
-          TAG_NUM="${TAG#v}"
-          if [ "$PY_VERSION" != "$TAG_NUM" ]; then
-            echo "pyproject.toml version ($PY_VERSION) does not match tag ($TAG_NUM)" >&2
+          VERSION="${TAG#v}"
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-].+)?$ ]]; then
+            echo "tag $TAG does not resolve to a PEP 440 version" >&2
             exit 1
           fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Write version into source
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.version }}"
+          python3 -c "
+          import pathlib, re
+          py = pathlib.Path('pyproject.toml')
+          py.write_text(re.sub(r'^version\s*=\s*\".*\"', f'version = \"$VERSION\"', py.read_text(), count=1, flags=re.M))
+          init = pathlib.Path('src/kbask/__init__.py')
+          init.write_text(re.sub(r'__version__\s*=\s*\".*\"', f'__version__ = \"$VERSION\"', init.read_text(), count=1))
+          "
+          grep '^version' pyproject.toml
+          grep '__version__' src/kbask/__init__.py
 
       - name: Build wheel and sdist
         run: uv build
@@ -91,3 +106,39 @@ jobs:
         env:
           PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
         run: uv publish --token "${PYPI_TOKEN}"
+
+      - name: Commit version bump back to main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Fetch and switch to main without losing the version-rewrite changes.
+          git stash push --include-untracked -m "release-version-rewrite" || true
+          git fetch origin main
+          git checkout main
+          git pull --ff-only origin main
+          git stash pop || true
+
+          # If main is already at this version, nothing to do.
+          if grep -q "^version = \"$VERSION\"$" pyproject.toml \
+             && grep -q "^__version__ = \"$VERSION\"$" src/kbask/__init__.py; then
+            echo "main already at version $VERSION; skipping commit."
+            exit 0
+          fi
+
+          python3 -c "
+          import pathlib, re, os
+          version = os.environ['VERSION']
+          py = pathlib.Path('pyproject.toml')
+          py.write_text(re.sub(r'^version\s*=\s*\".*\"', f'version = \"{version}\"', py.read_text(), count=1, flags=re.M))
+          init = pathlib.Path('src/kbask/__init__.py')
+          init.write_text(re.sub(r'__version__\s*=\s*\".*\"', f'__version__ = \"{version}\"', init.read_text(), count=1))
+          "
+
+          git add pyproject.toml src/kbask/__init__.py
+          git commit -m "chore(release): bump version to $VERSION [skip ci]"
+          git push origin main
