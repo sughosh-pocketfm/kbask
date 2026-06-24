@@ -434,20 +434,15 @@ Design rules:
 
 `v<MAJOR>.<MINOR>.<PATCH>` (SemVer). Pre-1.0 — breaking changes can land on any minor bump.
 
-The CI release job hard-fails when the tag and the version in `pyproject.toml` disagree, so keep these in sync:
-
-- `pyproject.toml` → `[project] version`
-- `src/kbask/__init__.py` → `__version__`
+The release tag is the source of truth. The release workflow strips an optional
+leading `v`, writes that version into `pyproject.toml` and
+`src/kbask/__init__.py` before building, and then commits the same version bump
+back to `main` if needed.
 
 ### Cutting a release
 
 ```bash
-# 1. Bump versions (must match the tag without the `v` prefix).
-#    pyproject.toml:        version = "0.1.1"
-#    src/kbask/__init__.py: __version__ = "0.1.1"
-
-# 2. Commit + tag + push.
-git commit -am "Release 0.1.1"
+# Tag the commit you want to release; both styles are accepted.
 git tag 0.1.1
 git push origin main --tags
 ```
@@ -464,7 +459,7 @@ gh workflow run release.yml -f tag=0.1.1
 
 1. Checks out at the tag.
 2. Sets up `uv` and Python 3.11.
-3. Verifies `pyproject.toml version == tag without the leading v`. Aborts otherwise.
+3. Resolves the version from the tag and writes it into source files.
 4. `uv build` → `dist/kbask-X.Y.Z-py3-none-any.whl` and `dist/kbask-X.Y.Z.tar.gz`.
 5. Smoke-tests the wheel — `pip install` + `kbask --help` must succeed.
 6. Generates `SHA256SUMS`.
@@ -475,6 +470,8 @@ gh workflow run release.yml -f tag=0.1.1
    - `install.sh`           (one-shot host installer bootstrap)
    - `tool-install.sh`      (`uv tool install` bootstrap)
 8. Publishes to PyPI **only if** the `PYPI_TOKEN` repo secret is configured.
+9. Commits `chore(release): bump version to X.Y.Z [skip ci]` back to `main`
+   when `main` does not already contain that version.
 
 ### Required repo secrets
 
