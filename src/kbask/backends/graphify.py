@@ -80,6 +80,13 @@ def update(repo: Path, graph_path: Path) -> None:
 _graph_cache: Dict[str, Any] = {}
 
 
+def clear_cache() -> Dict[str, Any]:
+    """Drop the in-process graph cache. Next call re-reads from disk."""
+    had_key = _graph_cache.get("key")
+    _graph_cache.clear()
+    return {"cleared": bool(had_key), "previous_key": had_key}
+
+
 def _load() -> Dict[str, Any]:
     """Load (or reload on path change) the networkx graph + communities."""
     path = state.graph_path()

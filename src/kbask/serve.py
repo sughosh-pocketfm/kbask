@@ -15,7 +15,40 @@ from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict
 
 from kbask import state
+from kbask.backends import graphify as _graphify_backend
+from kbask.backends import understand as _understand_backend
 from kbask.tools import hybrid, semantic, structural
+
+
+def _reload(target: str = "all") -> Dict[str, Any]:
+    """Drop in-process caches so the next tool call re-reads from disk."""
+    target = (target or "all").lower()
+    if target not in {"all", "structural", "semantic"}:
+        return {"error": f"unknown target {target!r}; expected all|structural|semantic"}
+
+    cleared: Dict[str, Any] = {}
+    if target in {"all", "structural"}:
+        cleared["structural"] = _graphify_backend.clear_cache()
+    if target in {"all", "semantic"}:
+        cleared["semantic"] = _understand_backend.clear_cache()
+
+    try:
+        graph_path = state.graph_path()
+        graph_mtime = graph_path.stat().st_mtime_ns if graph_path.exists() else None
+    except RuntimeError:
+        graph_mtime = None
+    try:
+        kg_path = state.knowledge_graph_path()
+        kg_mtime = kg_path.stat().st_mtime_ns if kg_path.exists() else None
+    except RuntimeError:
+        kg_mtime = None
+
+    return {
+        "target": target,
+        "cleared": cleared,
+        "graph_mtime_ns": graph_mtime,
+        "knowledge_graph_mtime_ns": kg_mtime,
+    }
 
 
 logger = logging.getLogger("kbask.serve")
@@ -176,6 +209,24 @@ _TOOLS: Dict[str, Dict[str, Any]] = {
             "type": "object",
             "properties": {"area": {"type": "string"}},
             "required": ["area"],
+        },
+    },
+    "reload": {
+        "fn": _reload,
+        "description": (
+            "Drop in-process caches so the next call re-reads kbask-out/ from disk. "
+            "Use after running `kbask update` against this repo from another shell. "
+            "target=all|structural|semantic (default all)."
+        ),
+        "input": {
+            "type": "object",
+            "properties": {
+                "target": {
+                    "type": "string",
+                    "description": "all | structural | semantic (default all).",
+                    "default": "all",
+                },
+            },
         },
     },
 }

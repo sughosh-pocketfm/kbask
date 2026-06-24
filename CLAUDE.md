@@ -125,7 +125,7 @@ host (Claude/Codex/Gemini)
        └─ kbask.cli.main()
             └─ kbask.serve.run(out_dir)
                  ├─ state.set_out_dir(out_dir)
-                 ├─ register 15 tools in _TOOLS dict
+                 ├─ register 16 tools in _TOOLS dict
                  └─ mcp.server.stdio.stdio_server → JSON-RPC 2.0 loop
 ```
 
@@ -294,6 +294,7 @@ python3 scripts/install-gemini.py --kbask-out /path/to/kbask-out
 | `ask`             | hybrid      | `query_graph` → `semantic_explain` per top-k candidate  |
 | `trace`           | hybrid      | `shortest_path` → `semantic_explain` per hop            |
 | `onboard`         | hybrid      | `query_graph` + `semantic_onboard` side-by-side         |
+| `reload`          | admin       | drops in-process caches; next call re-reads disk         |
 
 ---
 

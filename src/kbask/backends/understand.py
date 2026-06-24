@@ -96,6 +96,13 @@ def update(repo: Path, knowledge_graph_path: Path, dirty: List[str], full_rebuil
 _kg_cache: Dict[str, Any] = {}
 
 
+def clear_cache() -> Dict[str, Any]:
+    """Drop the in-process knowledge-graph cache. Next call re-reads from disk."""
+    had_key = _kg_cache.get("key")
+    _kg_cache.clear()
+    return {"cleared": bool(had_key), "previous_key": had_key}
+
+
 def _load_kg() -> Dict[str, Any]:
     path = state.knowledge_graph_path()
     if not path.exists():
