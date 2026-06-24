@@ -27,13 +27,13 @@ Graphify tells you **where** things are. Understand-Anything tells you **why** t
 
 ## Install
 
-> **Latest release:** [`0.1.0`](https://github.com/sughosh-pocketfm/kbask/releases/tag/0.1.0) — assets: `kbask-0.1.0-py3-none-any.whl`, `kbask-0.1.0.tar.gz`, `SHA256SUMS`, `install.sh`, `tool-install.sh`.
+> **Latest release:** [`0.1.1`](https://github.com/sughosh-pocketfm/kbask/releases/tag/0.1.1) — assets: `kbask-0.1.1-py3-none-any.whl`, `kbask-0.1.1.tar.gz`, `SHA256SUMS`, `install.sh`, `tool-install.sh`.
 >
 > Not yet on PyPI. Install from the GitHub Release, from `main`, or pinned
 > to a tag. Once on PyPI, `--from kbask` resolves from there with no other
 > change.
 
-Releases are cut as `X.Y.Z` git tags (the leading `v` is optional — both `0.1.0` and `v0.1.0` are accepted). The `release` GitHub Action
+Releases are cut as `X.Y.Z` git tags (the leading `v` is optional — both `0.1.1` and `v0.1.1` are accepted). The `release` GitHub Action
 builds a wheel + sdist, attaches them (and `install.sh` / `tool-install.sh` /
 `SHA256SUMS`) to the GitHub Release, and — if `PYPI_TOKEN` is configured —
 uploads the wheel to PyPI. See **[Releases](#releases)** for the cut process.
@@ -49,14 +49,14 @@ Puts `kbask` on your PATH so you can type it like any other tool:
 curl -fsSL https://raw.githubusercontent.com/sughosh-pocketfm/kbask/main/tool-install.sh | bash
 
 # Pin to a specific release tag
-KBASK_TAG=0.1.0 \
+KBASK_TAG=0.1.1 \
   curl -fsSL https://raw.githubusercontent.com/sughosh-pocketfm/kbask/main/tool-install.sh | bash
 ```
 
 The script:
 1. Installs `uv` if missing (Astral installer).
 2. Hits `https://api.github.com/repos/sughosh-pocketfm/kbask/releases/latest`
-   to find the wheel asset. Pin a release with `KBASK_TAG=X.Y.Z` (e.g. `KBASK_TAG=0.1.0`).
+   to find the wheel asset. Pin a release with `KBASK_TAG=X.Y.Z` (e.g. `KBASK_TAG=0.1.1`).
 3. Falls back to `git+https://github.com/sughosh-pocketfm/kbask` if no
    release exists yet (or for `main`).
 4. Runs `uv tool install --force` so `kbask` lands in `~/.local/bin`.
@@ -84,7 +84,7 @@ curl -fsSL https://raw.githubusercontent.com/sughosh-pocketfm/kbask/main/install
 # or: bash -s codex   |   bash -s gemini
 
 # Pin to a tag (the MCP config gets the same pin):
-KBASK_SOURCE="git+https://github.com/sughosh-pocketfm/kbask@0.1.0" \
+KBASK_SOURCE="git+https://github.com/sughosh-pocketfm/kbask@0.1.1" \
   curl -fsSL https://raw.githubusercontent.com/sughosh-pocketfm/kbask/main/install.sh | bash -s claude
 ```
 
@@ -95,10 +95,10 @@ KBASK_SOURCE="git+https://github.com/sughosh-pocketfm/kbask@0.1.0" \
 uvx --from git+https://github.com/sughosh-pocketfm/kbask kbask install claude --repo .
 
 # Pinned tag
-uvx --from "git+https://github.com/sughosh-pocketfm/kbask@0.1.0" kbask install claude --repo .
+uvx --from "git+https://github.com/sughosh-pocketfm/kbask@0.1.1" kbask install claude --repo .
 
 # From a downloaded wheel (verify SHA256SUMS first)
-uvx --from ./kbask-0.1.0-py3-none-any.whl kbask install claude --repo .
+uvx --from ./kbask-0.1.1-py3-none-any.whl kbask install claude --repo .
 ```
 
 ### D. After PyPI publish
