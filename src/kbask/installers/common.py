@@ -28,6 +28,7 @@ EXPECTED_TOOLS = {
     "semantic_explain", "semantic_chat", "semantic_diff",
     "semantic_onboard", "semantic_domain",
     "ask", "trace", "onboard",
+    "reload",
 }
 
 

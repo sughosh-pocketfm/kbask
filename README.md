@@ -21,6 +21,7 @@ Graphify tells you **where** things are. Understand-Anything tells you **why** t
   - `ask(question)` — structural BFS then semantic narrative on top candidates
   - `trace(from, to)` — shortest path + per-hop semantic gloss
   - `onboard(area)` — community detection + domain knowledge per cluster
+- **`reload(target?)`** — drop in-process caches so the next call re-reads `kbask-out/` from disk (`target=all|structural|semantic`, default `all`)
 
 ---
 
@@ -384,7 +385,7 @@ kbask (Python, stdio MCP)
 ├── diff.py                # per-file hash delta
 ├── meta.py                # meta.json IO + hash_file
 ├── state.py               # process-wide out_dir holder
-└── serve.py               # MCP stdio entry point — registers 15 tools
+└── serve.py               # MCP stdio entry point — registers 16 tools
 ```
 
 Design rules:
@@ -478,7 +479,7 @@ uv tool install ./kbask-0.1.1-py3-none-any.whl
 
 | Capability | State |
 |---|---|
-| MCP stdio server + 15 tools | ✅ |
+| MCP stdio server + 16 tools | ✅ |
 | Structural tools via `graphify.serve` internals | ✅ |
 | Semantic tools reading mirrored knowledge graph | ✅ |
 | Hybrid `ask` / `trace` / `onboard` (3-stage cascade) | ✅ |
