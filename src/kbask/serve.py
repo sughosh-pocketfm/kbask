@@ -223,7 +223,7 @@ _TOOLS: Dict[str, Dict[str, Any]] = {
             "properties": {
                 "target": {
                     "type": "string",
-                    "enum": ["all", "structural", "semantic"],
+                    "description": "all | structural | semantic (default all).",
                     "default": "all",
                 },
             },
