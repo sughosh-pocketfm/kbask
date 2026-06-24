@@ -268,10 +268,12 @@ python3 scripts/install-codex.py  --kbask-out /path/to/kbask-out
 python3 scripts/install-gemini.py --kbask-out /path/to/kbask-out
 ```
 
-### Bump version
-- `pyproject.toml` → `version`
-- `src/kbask/__init__.py` → `__version__`
-- Keep them in sync. Tag commit `v0.x.y`.
+### Cut a release
+- Tag the commit to release with `X.Y.Z` or `vX.Y.Z`.
+- The release workflow writes that tag version into `pyproject.toml` and
+  `src/kbask/__init__.py` before building.
+- After publishing, the workflow commits the same version bump back to `main`
+  if `main` does not already contain it.
 
 ---
 

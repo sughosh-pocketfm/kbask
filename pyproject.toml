@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "kbask"
-version = "0.1.0"
+version = "0.1.1"
 description = "Hybrid MCP server combining Graphify structural code graphs with Understand-Anything semantic knowledge bases."
 readme = "README.md"
 license = { text = "MIT" }
