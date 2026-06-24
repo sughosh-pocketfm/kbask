@@ -60,6 +60,19 @@ def _state_ready() -> bool:
         return False
 
 
+def is_available() -> bool:
+    """Return True iff a usable knowledge-graph.json is present on disk.
+
+    Hybrid tools call this once per request so they can switch to a
+    graphify-only fallback (rather than catching UnderstandUnavailable
+    on every per-entry call). Cheap: a single stat + state check.
+    """
+    if not _state_ready():
+        return False
+    path = state.knowledge_graph_path()
+    return path.exists() and path.stat().st_size > 0
+
+
 # ------------------------------------------------------------------
 # Update — copy upstream knowledge graph into our out-dir
 # ------------------------------------------------------------------

@@ -23,11 +23,15 @@ Graphify tells you **where** things are. Understand-Anything tells you **why** t
   - `onboard(area)` — community detection + domain knowledge per cluster
 - **`reload(target?)`** — drop in-process caches so the next call re-reads `kbask-out/` from disk (`target=all|structural|semantic`, default `all`)
 
+If Understand-Anything is not built for the target repo, hybrid tools automatically degrade to a **graphify-only** mode. The response includes `mode: "graphify-only"`, the structural bundle, file-candidate hints, and a `prompt_hint` that reframes the request (e.g. _"with graphify mcp how does auth work?"_) so the calling LLM reasons from structural data + direct file reads instead of erroring on missing semantic context.
+
 ---
 
 ## Install
 
-> **Latest release:** [`0.1.1`](https://github.com/sughosh-pocketfm/kbask/releases/tag/0.1.1) — assets: `kbask-0.1.1-py3-none-any.whl`, `kbask-0.1.1.tar.gz`, `SHA256SUMS`, `install.sh`, `tool-install.sh`.
+> **Latest release:** [`0.1.2`](https://github.com/sughosh-pocketfm/kbask/releases/tag/0.1.2) — assets: `kbask-0.1.2-py3-none-any.whl`, `kbask-0.1.2.tar.gz`, `SHA256SUMS`, `install.sh`, `tool-install.sh`.
+>
+> **What's new in 0.1.2:** Hybrid tools (`ask`/`trace`/`onboard`) now auto-fall-back to a **graphify-only** mode when Understand-Anything is not built for the target repo — the response carries a `prompt_hint` that instructs the calling LLM to reason from structural data + direct file reads instead of erroring on missing semantic context.
 >
 > Not yet on PyPI. Install from the GitHub Release, from `main`, or pinned
 > to a tag. Once on PyPI, `--from kbask` resolves from there with no other
