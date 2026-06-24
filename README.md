@@ -69,17 +69,7 @@ kbask doctor                      # check dependencies
 kbask --help
 ```
 
-Upgrade:
-```bash
-# In-place refresh from the GitHub Release (verifies SHA256SUMS):
-kbask update-bin
-# Pin a specific tag:
-kbask update-bin --tag 0.1.1
-# Or use uv directly:
-uv tool upgrade kbask
-# Or rerun the curl one-liner (always uses --force):
-curl -fsSL https://raw.githubusercontent.com/sughosh-pocketfm/kbask/main/tool-install.sh | bash
-```
+See [Upgrade kbask](#upgrade-kbask) for refresh commands.
 
 After upgrading, restart your MCP host (Claude Code / Codex / Gemini) so it respawns `kbask serve` against the new binary.
 
@@ -119,6 +109,37 @@ uv tool install kbask                  # persistent CLI
 uvx --from kbask kbask install claude  # one-shot
 uvx kbask --help                       # script + pkg share name
 ```
+
+### Upgrade kbask
+
+Match the path you installed with:
+
+**A. Persistent CLI (`uv tool install`)**
+```bash
+# In-place refresh from the latest GitHub Release (verifies SHA256SUMS):
+kbask update-bin
+# Pin a specific tag:
+kbask update-bin --tag 0.1.1
+# Or use uv directly:
+uv tool upgrade kbask
+# Or rerun the curl one-liner (always uses --force):
+curl -fsSL https://raw.githubusercontent.com/sughosh-pocketfm/kbask/main/tool-install.sh | bash
+KBASK_TAG=0.1.1 curl -fsSL https://raw.githubusercontent.com/sughosh-pocketfm/kbask/main/tool-install.sh | bash
+```
+
+**B/C. `uvx` ephemeral (hosts spawn it on demand)**
+
+`uvx --from kbask kbask serve` (or the git/wheel form) refetches per spawn. To force a fresh pull instead of the cached version:
+```bash
+uv cache clean kbask
+```
+
+**Local wheel**
+```bash
+uv tool install --force ./kbask-0.1.1-py3-none-any.whl
+```
+
+After upgrading, **restart your MCP host** (Claude Code / Codex / Gemini) so it respawns `kbask serve` against the new binary. Existing host sessions keep the old process until restart.
 
 ### Verify a release artifact
 
